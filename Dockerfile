@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir uv --break-system-packages
 RUN uv venv /opt/venv
 RUN uv pip install --no-cache -e ".[all]"
 RUN npm install --prefer-offline --no-audit
-RUN /opt/venv/bin/playwright install --with-deps chromium
+RUN npx playwright install --with-deps chromium
 RUN cd /opt/hermes/scripts/whatsapp-bridge && \
     npm install --prefer-offline --no-audit && \
     npm cache clean --force
