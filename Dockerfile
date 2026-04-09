@@ -13,13 +13,12 @@ RUN apt-get update && \
 COPY . /opt/hermes
 WORKDIR /opt/hermes
 
-# Install Python and Node dependencies in one layer, no cache
-RUN pip install --no-cache-dir uv --break-system-packages && \
-    uv venv /opt/venv && \
-    uv pip install --no-cache -e ".[all]" && \
-    npm install --prefer-offline --no-audit && \
-    npx playwright install --with-deps chromium --only-shell && \
-    cd /opt/hermes/scripts/whatsapp-bridge && \
+RUN pip install --no-cache-dir uv --break-system-packages
+RUN uv venv /opt/venv
+RUN uv pip install --no-cache -e ".[all]"
+RUN npm install --prefer-offline --no-audit
+RUN playwright install --with-deps chromium --only-shell
+RUN cd /opt/hermes/scripts/whatsapp-bridge && \
     npm install --prefer-offline --no-audit && \
     npm cache clean --force
 
