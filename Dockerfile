@@ -2,6 +2,7 @@ FROM debian:13.4
 
 # Disable Python stdout buffering to ensure logs are printed immediately
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install system dependencies in one layer, clear APT cache
 RUN apt-get update && \
@@ -14,7 +15,8 @@ WORKDIR /opt/hermes
 
 # Install Python and Node dependencies in one layer, no cache
 RUN pip install --no-cache-dir uv --break-system-packages && \
-    uv pip install --system --no-cache -e ".[all]" && \
+    uv venv /opt/venv && \
+    uv pip install --no-cache -e ".[all]" && \
     npm install --prefer-offline --no-audit && \
     npx playwright install --with-deps chromium --only-shell && \
     cd /opt/hermes/scripts/whatsapp-bridge && \
