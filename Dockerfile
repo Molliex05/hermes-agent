@@ -24,9 +24,8 @@ COPY --chmod=0755 --from=uv_source /usr/local/bin/uv /usr/local/bin/uvx /usr/loc
 COPY . /opt/hermes
 WORKDIR /opt/hermes
 
-# Install Node dependencies and Playwright as root (--with-deps needs apt)
+# Install Node dependencies (Playwright omitted — install manually if browser tools needed)
 RUN npm install --prefer-offline --no-audit && \
-    npx playwright install --with-deps chromium --only-shell && \
     cd /opt/hermes/scripts/whatsapp-bridge && \
     npm install --prefer-offline --no-audit && \
     npm cache clean --force
