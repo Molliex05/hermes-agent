@@ -61,4 +61,7 @@ if [ -d "$INSTALL_DIR/skills" ]; then
     python3 "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
+# Sessions REST API (lit le SQLite, sert JSON sur port 9119)
+python3 "${INSTALL_DIR}/docker/sessions-api.py" &
+
 exec hermes "$@"
