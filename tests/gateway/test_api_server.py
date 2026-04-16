@@ -611,6 +611,33 @@ class TestChatCompletionsEndpoint:
                 assert "Here are the files." in body
 
     @pytest.mark.asyncio
+    async def test_stream_falls_back_to_final_response_when_no_delta_emitted(self, adapter):
+        """Stream final_response if the agent never pushes delta.content."""
+        app = _create_app(adapter)
+        async with TestClient(TestServer(app)) as cli:
+            async def _mock_run_agent(**kwargs):
+                return (
+                    {"final_response": "Fallback reply.", "messages": [], "api_calls": 1},
+                    {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+                )
+
+            with patch.object(adapter, "_run_agent", side_effect=_mock_run_agent):
+                resp = await cli.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "test",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": True,
+                    },
+                )
+                assert resp.status == 200
+                body = await resp.text()
+                assert '"delta": {"role": "assistant"}' in body
+                assert '"delta": {"content": "Fallback reply."}' in body
+                assert '"finish_reason": "stop"' in body
+                assert "[DONE]" in body
+
+    @pytest.mark.asyncio
     async def test_stream_tool_progress_skips_internal_events(self, adapter):
         """Internal events (name starting with _) are not streamed."""
         import asyncio

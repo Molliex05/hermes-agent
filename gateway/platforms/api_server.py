@@ -863,6 +863,7 @@ class APIServerAdapter(BasePlatformAdapter):
 
         try:
             last_activity = time.monotonic()
+            content_sent = False
 
             # Role chunk
             role_chunk = {
@@ -875,6 +876,7 @@ class APIServerAdapter(BasePlatformAdapter):
 
             # Helper — route a queue item to the correct SSE event.
             async def _emit(item):
+                nonlocal content_sent
                 """Write a single queue item to the SSE stream.
 
                 Plain strings are sent as normal ``delta.content`` chunks.
@@ -895,6 +897,8 @@ class APIServerAdapter(BasePlatformAdapter):
                         "choices": [{"index": 0, "delta": {"content": item}, "finish_reason": None}],
                     }
                     await response.write(f"data: {json.dumps(content_chunk)}\n\n".encode())
+                    if isinstance(item, str) and item:
+                        content_sent = True
                 return time.monotonic()
 
             # Stream content chunks as they arrive from the agent
@@ -925,12 +929,31 @@ class APIServerAdapter(BasePlatformAdapter):
                 last_activity = await _emit(delta)
 
             # Get usage from completed agent
+            result = None
             usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
             try:
                 result, agent_usage = await agent_task
                 usage = agent_usage or usage
             except Exception:
                 pass
+
+            final_response = ""
+            if isinstance(result, dict):
+                final_response = str(result.get("final_response") or "").strip()
+
+            if not content_sent and final_response and final_response != "(empty)":
+                logger.info(
+                    "SSE fallback emitted final_response for %s (%d chars)",
+                    session_id or completion_id,
+                    len(final_response),
+                )
+                fallback_chunk = {
+                    "id": completion_id, "object": "chat.completion.chunk",
+                    "created": created, "model": model,
+                    "choices": [{"index": 0, "delta": {"content": final_response}, "finish_reason": None}],
+                }
+                await response.write(f"data: {json.dumps(fallback_chunk)}\n\n".encode())
+                last_activity = time.monotonic()
 
             # Finish chunk
             finish_chunk = {
