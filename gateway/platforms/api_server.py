@@ -1554,6 +1554,37 @@ class APIServerAdapter(BasePlatformAdapter):
     _MAX_CONCURRENT_RUNS = 10  # Prevent unbounded resource allocation
     _RUN_STREAM_TTL = 300  # seconds before orphaned runs are swept
 
+    @staticmethod
+    def _context_status_snapshot(agent: Any, run_id: str) -> Dict[str, Any]:
+        """Build a compact context usage snapshot for API-server SSE consumers."""
+        compressor = getattr(agent, "context_compressor", None)
+        context_tokens = int(getattr(compressor, "last_prompt_tokens", 0) or 0) if compressor else 0
+        context_length = int(getattr(compressor, "context_length", 0) or 0) if compressor else 0
+        threshold_tokens = int(getattr(compressor, "threshold_tokens", 0) or 0) if compressor else 0
+        compression_count = int(getattr(compressor, "compression_count", 0) or 0) if compressor else 0
+        input_tokens = int(getattr(agent, "session_prompt_tokens", 0) or 0)
+        output_tokens = int(getattr(agent, "session_completion_tokens", 0) or 0)
+        total_tokens = int(getattr(agent, "session_total_tokens", 0) or 0)
+
+        context_percent = round((context_tokens / context_length) * 100, 1) if context_length else None
+        compaction_percent = round((context_tokens / threshold_tokens) * 100, 1) if threshold_tokens else None
+
+        return {
+            "event": "context.status",
+            "run_id": run_id,
+            "timestamp": time.time(),
+            "model": getattr(agent, "model", None),
+            "context_tokens": context_tokens,
+            "context_length": context_length,
+            "context_percent": min(100, context_percent) if context_percent is not None else None,
+            "threshold_tokens": threshold_tokens,
+            "compaction_percent": min(100, compaction_percent) if compaction_percent is not None else None,
+            "compression_count": compression_count,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+        }
+
     def _make_run_event_callback(self, run_id: str, loop: "asyncio.AbstractEventLoop"):
         """Return a tool_progress_callback that pushes structured events to the run's SSE queue."""
         def _push(event: Dict[str, Any]) -> None:
@@ -1699,6 +1730,8 @@ class APIServerAdapter(BasePlatformAdapter):
                     stream_delta_callback=_text_cb,
                     tool_progress_callback=event_cb,
                 )
+                q.put_nowait(self._context_status_snapshot(agent, run_id))
+
                 def _run_sync():
                     r = agent.run_conversation(
                         user_message=user_message,
@@ -1710,16 +1743,18 @@ class APIServerAdapter(BasePlatformAdapter):
                         "output_tokens": getattr(agent, "session_completion_tokens", 0) or 0,
                         "total_tokens": getattr(agent, "session_total_tokens", 0) or 0,
                     }
-                    return r, u
+                    return r, u, self._context_status_snapshot(agent, run_id)
 
-                result, usage = await asyncio.get_running_loop().run_in_executor(None, _run_sync)
+                result, usage, context_status = await asyncio.get_running_loop().run_in_executor(None, _run_sync)
                 final_response = result.get("final_response", "") if isinstance(result, dict) else ""
+                q.put_nowait(context_status)
                 q.put_nowait({
                     "event": "run.completed",
                     "run_id": run_id,
                     "timestamp": time.time(),
                     "output": final_response,
                     "usage": usage,
+                    "context_status": context_status,
                 })
             except Exception as exc:
                 logger.exception("[api_server] run %s failed", run_id)
