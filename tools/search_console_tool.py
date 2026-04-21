@@ -91,6 +91,7 @@ def _handle_gsc_performance(
     dimensions: Optional[List[str]] = None,
     row_limit: int = 25,
     filter_query: Optional[str] = None,
+    site: Optional[str] = None,
     **_,
 ) -> str:
     try:
@@ -114,7 +115,7 @@ def _handle_gsc_performance(
             }]
         }]
 
-    site = _site_url()
+    site = site or _site_url()
     url = f"{_GSC_BASE}/sites/{site}/searchAnalytics/query"
     try:
         resp = _requests.post(url, headers=_headers(), json=body, timeout=20)
@@ -146,13 +147,13 @@ def _handle_gsc_performance(
     }, ensure_ascii=False)
 
 
-def _handle_gsc_inspect_url(page_url: str, **_) -> str:
+def _handle_gsc_inspect_url(page_url: str, site: Optional[str] = None, **_) -> str:
     try:
         import requests as _requests
     except ImportError as exc:
         return f"error: missing dependency {exc}"
 
-    body = {"inspectionUrl": page_url, "siteUrl": _site_url()}
+    body = {"inspectionUrl": page_url, "siteUrl": site or _site_url()}
     url = f"{_INSPECT_BASE}/urlInspection/index:inspect"
     try:
         resp = _requests.post(url, headers=_headers(), json=body, timeout=20)
@@ -178,23 +179,28 @@ def _handle_gsc_inspect_url(page_url: str, **_) -> str:
 # Schemas
 # ---------------------------------------------------------------------------
 
+_SITE_DESCRIPTION = (
+    "GSC site identifier. Available: 'sc-domain:noriven.com' (default) or "
+    "'sc-domain:glutax.ca'. Use the sc-domain: prefix, not https://."
+)
+
 GSC_PERFORMANCE_SCHEMA = {
     "name": "gsc_performance",
     "description": (
-        "Query Google Search Console performance data for noriven.com. "
-        "Returns clicks, impressions, CTR and average position for a date range. "
-        "Use dimensions=['query'] for keywords, ['page'] for URLs, or ['query','page'] for both."
+        "Query Google Search Console performance data (clicks, impressions, CTR, position) "
+        "for noriven.com or glutax.ca. Use dimensions=['query'] for keywords, "
+        "['page'] for URLs, or ['date'] for time series."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "start_date": {
                 "type": "string",
-                "description": "Start date in YYYY-MM-DD format (e.g. '2025-01-01').",
+                "description": "Start date in YYYY-MM-DD format.",
             },
             "end_date": {
                 "type": "string",
-                "description": "End date in YYYY-MM-DD format (e.g. '2025-01-31').",
+                "description": "End date in YYYY-MM-DD format. GSC has a ~2 day lag.",
             },
             "dimensions": {
                 "type": "array",
@@ -207,7 +213,11 @@ GSC_PERFORMANCE_SCHEMA = {
             },
             "filter_query": {
                 "type": "string",
-                "description": "Optional keyword filter (case-insensitive contains match on query dimension).",
+                "description": "Optional keyword filter (contains match on query dimension).",
+            },
+            "site": {
+                "type": "string",
+                "description": _SITE_DESCRIPTION,
             },
         },
         "required": ["start_date", "end_date"],
@@ -217,8 +227,9 @@ GSC_PERFORMANCE_SCHEMA = {
 GSC_INSPECT_URL_SCHEMA = {
     "name": "gsc_inspect_url",
     "description": (
-        "Inspect the Google indexing status of a specific URL on noriven.com. "
-        "Returns verdict (PASS/FAIL/NEUTRAL), coverage state, last crawl time, robots.txt status."
+        "Inspect the Google indexing status of a specific URL. "
+        "Returns verdict (PASS/FAIL/NEUTRAL), coverage state, last crawl time, robots.txt status. "
+        "Works for noriven.com and glutax.ca."
     ),
     "input_schema": {
         "type": "object",
@@ -226,6 +237,10 @@ GSC_INSPECT_URL_SCHEMA = {
             "page_url": {
                 "type": "string",
                 "description": "Full URL to inspect (e.g. 'https://noriven.com/blog/article').",
+            },
+            "site": {
+                "type": "string",
+                "description": _SITE_DESCRIPTION,
             },
         },
         "required": ["page_url"],
