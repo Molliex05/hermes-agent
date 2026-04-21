@@ -201,6 +201,12 @@ TOOLSETS = {
         "includes": []
     },
 
+    "search_console": {
+        "description": "Google Search Console — query SEO performance and URL indexing status",
+        "tools": ["gsc_performance", "gsc_inspect_url"],
+        "includes": []
+    },
+
 
     # Scenario-specific toolsets
     
