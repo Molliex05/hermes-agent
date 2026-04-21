@@ -10,9 +10,12 @@ ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 
 # Install system dependencies in one layer, clear APT cache
+# Node.js 22 via NodeSource (Baileys requires >= 22 via language-tags@2.1.0)
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends \
-        git build-essential nodejs npm python3 ripgrep ffmpeg gcc python3-dev libffi-dev procps && \
+        nodejs git build-essential python3 ripgrep ffmpeg gcc python3-dev libffi-dev procps && \
     rm -rf /var/lib/apt/lists/*
 
 # Non-root user for runtime; UID can be overridden via HERMES_UID at runtime
