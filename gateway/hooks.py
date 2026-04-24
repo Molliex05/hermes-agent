@@ -66,6 +66,19 @@ class HookRegistry:
         except Exception as e:
             print(f"[hooks] Could not load built-in boot-md hook: {e}", flush=True)
 
+        try:
+            from gateway.builtin_hooks.action_log import handle as action_log_handle
+
+            self._handlers.setdefault("agent:end", []).append(action_log_handle)
+            self._loaded_hooks.append({
+                "name": "action-log",
+                "description": "Persist completed agent runs to HERMES_HOME/hermes-actions.log",
+                "events": ["agent:end"],
+                "path": "(builtin)",
+            })
+        except Exception as e:
+            print(f"[hooks] Could not load built-in action-log hook: {e}", flush=True)
+
     def discover_and_load(self) -> None:
         """
         Scan the hooks directory for hook directories and load their handlers.
