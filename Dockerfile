@@ -462,4 +462,8 @@ VOLUME [ "/opt/data" ]
 # wrapper-as-ENTRYPOINT, leading-dash args like `--version` would be
 # intercepted by /init's POSIX shell.
 ENTRYPOINT [ "/opt/hermes/docker/entrypoint-dispatch.sh" ]
-CMD [ ]
+# Noriven: this image is deployed by Coolify as a long-lived gateway server.
+# Coolify's Dockerfile build pack exposes no start-command field, so the
+# default CMD has to carry it. main-wrapper.sh prefixes `hermes`, giving
+# `hermes gateway run` — the foreground mode documented for containers.
+CMD [ "gateway", "run" ]
